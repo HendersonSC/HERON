@@ -97,7 +97,9 @@ class HERON(Base):
     if self._case.debug['enabled']:  # TODO do this every time?
       graph = NetworkPlot(self._components)
       img_path = os.path.join(self._input_dir, 'network.png')
+      graph.generate_plotly(self._case.name,self._case.get_mode(),self._input_dir)
       graph.save(img_path)
+
 
   def create_raven_workflow(self, case=None, python_cmd_raven=None):
     """

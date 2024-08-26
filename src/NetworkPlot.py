@@ -8,6 +8,8 @@ import networkx as nx
 import matplotlib as mpl
 mpl.use('Agg') # Prevents the module from blocking while plotting
 import matplotlib.pyplot as plt
+import plotly.graph_objects as go  
+from collections import defaultdict
 
 
 class NetworkPlot:
@@ -123,6 +125,83 @@ class NetworkPlot:
 
     ax.axis('off')
     fig.set_facecolor('darkgrey')
+
+  def generate_plotly(self,casename:str|None, casemode:str|None, html_path:str|None):
+     """
+       Plots and formats the graph
+       @ In, html_path, string, base path for saving the html plot
+       @ Out, None
+     """
+     # Products are the starting point of the plot
+     nodes = []
+     #Information to display when hovering over the nodes
+     customData = []
+     hovertemplate = "Dispactchable: %{customdata[1]} <br>"
+     hovertemplate+= "Governed: %{customdata[0]} <br>"
+     hovertemplate+= "Lifetime: %{customdata[2]} <br>"
+     #Intended form: Will be used to break cycles for storage nodes
+     #  {"resource_name: : { "consumer" : [index], "producer" : [index]}}
+     rsc = defaultdict(lambda: defaultdict(lambda: []))
+     #Enumerate components because Plotly like indexes
+     for i,c in enumerate(self._components):
+       #Identify nodes
+       if c.name not in nodes:
+           #Generate custom hover information for each node in the network
+           nodes.append(c.name)
+           customData.append(
+                   [c.is_governed(),
+                    c.is_dispatchable(),
+                    c._economics._lifetime,
+                    ])
+           print(c.get_capacity)
+
+       #Match nodes
+       rsc_in = c.get_inputs()
+       for ri in rsc_in:
+           rsc[ri]["consumer"].append(i)
+
+       rsc_out = c.get_outputs()
+       for ro in rsc_out:
+           rsc[ro]["producer"].append(i)
+
+     # create the links
+     lnk_lbl = []
+     lnk_src = []
+     lnk_tgt = []
+     lnk_val = []
+     for r in rsc.keys():
+         for j in rsc[r]["producer"]:
+             for k in rsc[r]["consumer"]:
+                 if j != k: #Storage nodes produce and consume but are not cycles
+                     lnk_lbl.append(r)
+                     lnk_src.append(j)
+                     lnk_tgt.append(k)
+                     lnk_val.append(1)
+
+     fig = go.Figure(go.Sankey(
+         arrangement='freeform',
+         textfont=dict(
+             size = 18,
+             ),
+         hoverlabel_font_size = 18,
+         node=dict(
+             label=nodes,
+             pad=10,
+             align="right",
+             customdata = customData,
+             hovertemplate = hovertemplate,
+         ),
+         link=dict(
+             arrowlen=15,
+             source = lnk_src ,
+             target = lnk_tgt ,
+             value  = lnk_val ,
+             label  = lnk_lbl,
+         ),
+
+     ))
+     fig.update_layout(title_text=f"Case Name: {casename}  Mode: {casemode}")
+     fig.write_html(html_path + "plotly_network.html")
 
   def save(self, filename: str) -> None:
     """
